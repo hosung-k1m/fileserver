@@ -1,6 +1,16 @@
 #include <iostream>
+#include "ssh_socket.h"
 
 int main() {
-    std::cout << "Hello this is running inside of the docker" << std::endl;
+    SSHSocket ssh("github.com", 22); // port 22 is ssh
+
+    if (ssh.connectToServer()) {
+        ssh.exchangeVersionStrings();
+        ssh.closeConnection();
+    }
+    else {
+        std::cerr << "Error connecting \n";
+    }
+    
     return 0;
 }
