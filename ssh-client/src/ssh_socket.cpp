@@ -35,12 +35,16 @@ bool SSHSocket::connectToServer() {
     socketfd_ = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (socketfd_== -1) {
         perror("socket");
+        freeaddrinfo(res);
         return false;
     }
 
     // connect the socket fd
     if(::connect(socketfd_, res->ai_addr, res->ai_addrlen) == -1) {
         perror("connect");
+        close(socketfd_);
+        socketfd_ = -1;
+        freeaddrinfo(res);
         return false;
     }
 
@@ -52,22 +56,22 @@ bool SSHSocket::connectToServer() {
 }
 
 // first step of SSH protocol
-void SSHSocket::exchangeVersionStrings() {
-    // send version string on socket
+bool SSHSocket::exchangeVersionStrings(std::string& serverVersion) {
     const std::string clientVersion = "SSH-2.0-CustomClient_0.1\r\n";
-    send(socketfd_, clientVersion.c_str(), clientVersion.size(), 0);
-    
-    // allocate buffer for incoming message
-    char buffer[256];
-    memset(buffer, 0, sizeof(buffer));
-    ssize_t bytesReceived = recv(socketfd_, buffer, sizeof(buffer) -1, 0);
+    if (send(socketfd_, clientVersion.c_str(), clientVersion.size(), 0) <= 0) {
+        std::cerr << "Failed to send version string\n";
+        return false;
+    }
 
-    if (bytesReceived > 0) {
-        std::cout << "Server Version: " << buffer;
+    char buffer[256] = {0};
+    ssize_t bytesReceived = recv(socketfd_, buffer, sizeof(buffer) - 1, 0);
+    if (bytesReceived <= 0) {
+        std::cerr << "Failed to receive version string from server\n";
+        return false;
     }
-    else {
-        std::cerr << "Failed to recieve version string from server \n";
-    }
+
+    serverVersion = std::string(buffer, bytesReceived);
+    return true;
 }
 
 void SSHSocket::closeConnection() {
