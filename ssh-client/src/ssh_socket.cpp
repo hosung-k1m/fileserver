@@ -48,7 +48,7 @@ bool SSHSocket::connectToServer() {
         return false;
     }
 
-    std::cout << "connected to " << hostname_ << "on port number " << port_ <<std::endl;
+    std::cout << "connected to " << hostname_ << " on port number " << port_ <<std::endl;
 
     freeaddrinfo(res);
 
