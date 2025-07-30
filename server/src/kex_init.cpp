@@ -2,6 +2,7 @@
 #include "../include/byte_stream.h"
 #include <cstdlib>
 #include <iostream>
+#include <algorithm>
 
 // first message for SSH handshake and key exchange phase
 
@@ -146,6 +147,96 @@ std::vector<std::string> parseList(const std::vector<uint8_t>& data, size_t& off
     return res;
 }
 
+bool kexFirstMatch(KexMatch& matchedKex, const KexInformation& serverKex, const KexInformation& clientKex) {
+
+    std::string res = "";
+    if (match(res, serverKex.keyExchange, clientKex.keyExchange)) {
+        matchedKex.keyExchange = res;
+    }
+    else {
+        std::cout << "keyExchange match failed" << std::endl;
+        return false;
+    }
+
+    res = "";
+    if (match(res, serverKex.hostKey, clientKex.hostKey)) {
+        matchedKex.hostKey = res;
+        std::cout << "hostKey match failed" << std::endl;
+
+    }
+    else {
+        return false;
+    }
+
+    res = "";
+    if (match(res, serverKex.encryptionClientToServer, clientKex.encryptionClientToServer)) {
+        matchedKex.encryptionClientToServer = res;
+        std::cout << "hostKey match failed" << std::endl;
+    }
+    else {
+        return false;
+    }
+
+    res = "";
+    if (match(res, serverKex.encryptionServerToClient, clientKex.encryptionServerToClient)) {
+        matchedKex.encryptionServerToClient = res;
+        std::cout << "encryptionServerToClient match failed" << std::endl;
+    }
+    else {
+        return false;
+    }
+
+    res = "";
+    if (match(res, serverKex.MACClientToServer, clientKex.MACClientToServer)) {
+        matchedKex.MACClientToServer = res;
+        std::cout << "MACClientToServer match failed" << std::endl;
+    }
+    else {
+        return false;
+    }
+
+    res = "";
+    if (match(res, serverKex.MACServerToClient, clientKex.MACServerToClient)) {
+        matchedKex.MACServerToClient = res;
+        std::cout << "MACServerToClient match failed" << std::endl;
+    }
+    else {
+        return false;
+    }
+
+    res = "";
+    if (match(res, serverKex.CompressionClientToServer, clientKex.CompressionClientToServer)) {
+        matchedKex.CompressionClientToServer = res;
+        std::cout << "CompressionClientToServer match failed" << std::endl;
+    }
+    else {
+        return false;
+    }
+
+    res = "";
+    if (match(res, serverKex.CompressionServerToClient, clientKex.CompressionServerToClient)) {
+        matchedKex.CompressionServerToClient = res;
+        std::cout << "CompressionServerToClient match failed" << std::endl;
+    }
+    else {
+        return false;
+    }
+
+
+    return true;
+}
+
+bool match(std::string& matchString, const std::vector<std::string>& serverList, const std::vector<std::string>& clientList) {
+    for (const auto& clientString : clientList) {
+        if (std::find(serverList.begin(), serverList.end(), clientString) != serverList.end()) {
+            matchString = clientString;
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void printKexInformation(const KexInformation& kexInfo) {
     std::cout << "=== KEX Information ===" << std::endl;
     
@@ -200,4 +291,16 @@ void printKexInformation(const KexInformation& kexInfo) {
     }
     
     std::cout << "=====================" << std::endl;
+}
+
+void printMatchKex(const KexMatch& res) {
+    std::cout << "MATCHED KEX VALUES" << std::endl;
+    std::cout << " keyExchange: "<< res.keyExchange << std::endl;
+    std::cout << " hostKey: "<< res.hostKey << std::endl;
+    std::cout << " encryptionClientToServer: "<< res.encryptionClientToServer << std::endl;
+    std::cout << " encryptionServerToClient: "<< res.encryptionServerToClient << std::endl;
+    std::cout << " MACClientToServer: "<< res.MACClientToServer << std::endl;
+    std::cout << " MACServerToClient: "<< res.MACServerToClient << std::endl;
+    std::cout << " CompressionClientToServer: "<< res.CompressionClientToServer << std::endl;
+    std::cout << " CompressionServerToClient: "<< res.CompressionServerToClient << std::endl;
 }
