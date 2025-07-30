@@ -1,4 +1,4 @@
-#include "byte_stream.h"
+#include "../include/byte_stream.h"
 
 // byte = 8 bits
 void ByteStream::writeByte(uint8_t val) {
@@ -28,6 +28,10 @@ void ByteStream::writeNameList(const std::vector<std::string>& names) {
     }
 
     writeString(combined);
+}
+
+void ByteStream::writeRaw(const std::vector<uint8_t>& val) {
+    buffer_.insert(buffer_.end(), val.begin(), val.end());
 }
 
 const std::vector<uint8_t>& ByteStream::data() const {

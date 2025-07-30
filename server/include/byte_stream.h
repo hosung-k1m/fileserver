@@ -10,6 +10,7 @@ class ByteStream {
         void writeString(const std::string& val);
         void writeNameList(const std::vector<std::string>& names);
         void writeMpint(const std::vector<uint8_t>& val);
+        void writeRaw(const std::vector<uint8_t>& val); // Write raw bytes without length prefix
 
     const std::vector<uint8_t>& data() const;
     
