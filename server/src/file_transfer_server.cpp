@@ -1,9 +1,10 @@
 #include "file_transfer_server.h"
-#include "kex_init.h"
-#include "simple_dh.h"
+#include "kex.h"
+#include "dh.h"
 #include "packet.h"
 #include "simple_crypto.h"
 #include "file_transfer_protocol.h"
+#include "authentication_protocol.h"
 
 #include <iostream>
 #include <vector>
@@ -28,6 +29,9 @@ FileTransferServer::FileTransferServer(int port, const std::string& uploadDir) {
     // user: hosung
     // pw: kim 
     users_["hosung"] = "kim";
+    // user: admin (from README)
+    // pw: password
+    users_["admin"] = "password";
 }
 
 // on destruction
@@ -126,7 +130,8 @@ void FileTransferServer::handleClient(int clientSocket) {
         }
         
         // second step --> KEXINIT exchange
-        if (!handleKexinitExchange(clientSocket)) {
+        KexMatch MatchedKex;
+        if (!handleKexinitExchange(clientSocket, MatchedKex)) {
             std::cerr << "Key exchange failed :(" << std::endl;
             close(clientSocket);
             return;
@@ -139,7 +144,7 @@ void FileTransferServer::handleClient(int clientSocket) {
             return;
         }
         
-        
+        // Phase 3: Authentication
         std::string username;
         if (!handleAuthentication(clientSocket, username)) {
             std::cerr << "Authentication failed" << std::endl;
@@ -149,6 +154,7 @@ void FileTransferServer::handleClient(int clientSocket) {
         
         std::cout << "User " << username << " authenticated successfully" << std::endl;
         
+        // Phase 4: File Transfer
         handleFileTransfer(clientSocket, username);
         
     } catch (const std::exception& e) {
@@ -186,7 +192,7 @@ bool FileTransferServer::handleVersionExchange(int clientSocket) {
     return true;
 }
 
-bool FileTransferServer::handleKexinitExchange(int clientSocket) {
+bool FileTransferServer::handleKexinitExchange(int clientSocket, KexMatch& matchedKex) {
     
     std::cout << "2. Starting KEXINIT Payload exchange" << std::endl;
     
@@ -201,7 +207,7 @@ bool FileTransferServer::handleKexinitExchange(int clientSocket) {
     std::cout << "Received client KEXINIT (" << kexLen << " bytes)" << std::endl;
     
     // Send server KEXINIT
-    std::vector<uint8_t> serverKexPayload = buildKexInitPayload();
+            std::vector<uint8_t> serverKexPayload = buildKexPayload();
 
     // load the KexInformation struct
     KexInformation serverKexInfo = parseKexPayload(serverKexPayload);
@@ -219,9 +225,136 @@ bool FileTransferServer::handleKexinitExchange(int clientSocket) {
     std::cout << "Client Kex Info" << std::endl;
     printKexInformation(clientKexInfo);
 
-
-    // TODO: negotiation on what to use
-    // unwrap the client responce and then parse
+    if (!(kexFirstMatch(matchedKex, serverKexInfo, clientKexInfo))) {
+        std::cout << "KexFirstMatch failed" << std::endl;
+        return false;
+    }
+    std::cout << "=============================" << std::endl;
+    printMatchKex(matchedKex);
 
     return true;
+}
+
+bool FileTransferServer::handleKeyExchange(int clientSocket) {
+
+    // step 3 DH Key Exchange
+    std::cout << "3. Starting DH Key exchange" << std::endl;
+
+    // recieve dh from client
+    uint8_t buffer[4096];
+    ssize_t bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+    if (bytesRead <= 0) {
+        std::cerr << "Failed to receive client KEXDH_INIT" << std::endl;
+        return false;
+    }
+    std::cout << "Received client KEXDH_INIT (" << bytesRead << " bytes)" << std::endl;
+    
+    std::vector<uint8_t> clientKexdhPacket(buffer, buffer + bytesRead);
+    std::vector<uint8_t> clientKexdhPayload = unwrapPacket(clientKexdhPacket);
+    
+    // generate server DH
+    std::vector<uint8_t> serverKexdhReply = generateServerKexdhReply(clientKexdhPayload);
+    std::vector<uint8_t> serverKexdhPacket = wrapPacket(serverKexdhReply);
+    
+    // add KEXDH_REPLY
+    std::vector<uint8_t> res;
+    res.insert(res.end(), serverKexdhPacket.begin(), serverKexdhPacket.end());
+    
+    // add NEWKEYS to start encryption
+    std::vector<uint8_t> newkeysMsg = {21}; // NEWKEYS CODE
+    std::vector<uint8_t> newkeysPacket = wrapPacket(newkeysMsg);
+    res.insert(res.end(), newkeysPacket.begin(), newkeysPacket.end());
+    
+    send(clientSocket, res.data(), res.size(), 0);
+    std::cout << "Sent KEXDH_REPLY + NEWKEYS (" << res.size() << " bytes)" << std::endl;
+    
+    // Receive client NEWKEYS
+    uint8_t newkeysBuf[1024];
+    ssize_t newkeysLen = recv(clientSocket, newkeysBuf, sizeof(newkeysBuf), 0);
+    if (newkeysLen <= 0) {
+        std::cerr << "Failed to receive client NEWKEYS" << std::endl;
+        return false;
+    }
+    std::cout << "Received client NEWKEYS (" << newkeysLen << " bytes)" << std::endl;
+    
+    std::cout << "Key exchange completed successfully" << std::endl;
+    return true;
+}
+
+std::vector<uint8_t> FileTransferServer::generateServerKexdhReply(const std::vector<uint8_t>& clientKexdhPayload) {
+    /**
+     * messgae_id --> 30
+     * client public (e) --> mpint value
+     */
+
+    // read client kex_dh must start with message_id = 30
+    if (clientKexdhPayload.empty() || clientKexdhPayload[0] != 30) {
+        std::cerr << "Invalid KEXDH_INIT message" << std::endl;
+        return std::vector<uint8_t>();
+    }
+    
+    // Extract client's public key
+    size_t offset = 1;
+    if (offset + 4 > clientKexdhPayload.size()) {
+        std::cerr << "Invalid KEXDH_INIT packet size :(" << std::endl;
+        return std::vector<uint8_t>();
+    }
+    
+    uint32_t clientPublicLength = read32BigEndian(clientKexdhPayload, offset);
+    
+    if (offset + clientPublicLength > clientKexdhPayload.size()) {
+        std::cerr << "Invalid client public key length" << std::endl;
+        return std::vector<uint8_t>();
+    }
+    
+    std::vector<uint8_t> clientPublicBytes(clientKexdhPayload.begin() + offset, clientKexdhPayload.begin() + offset + clientPublicLength);
+    uint64_t clientPublicKey = DH::bytesToUint64(clientPublicBytes);
+    
+    std::cout << "Client public key length: " << clientPublicLength << std::endl;
+    std::cout << "Client public key bytes: ";
+    for (auto b : clientPublicBytes) {
+        std::cout << std::hex << (int)b << " ";
+    }
+    std::cout << std::dec << std::endl;
+    std::cout << "Client public key value: " << std::hex << clientPublicKey << std::dec << std::endl;
+    
+    // create the server DH
+    DH serverDH;
+    uint64_t serverPublicKey = serverDH.generatePublicKey();
+    std::cout << "Server public key: " << std::hex << serverPublicKey << std::dec << std::endl;
+    
+    // compute the shared secret
+    uint64_t sharedSecret = serverDH.computeSharedSecret(clientPublicKey);
+    std::cout << "Server computed shared secret: " << std::hex << sharedSecret << std::dec << std::endl;
+    
+    /* KEXDH reply format
+        ssh_msh_kexdh_reply --> 31
+        server public host key
+        server public host key
+        signiture using server private key
+
+    */
+    std::vector<uint8_t> reply;
+
+    reply.push_back(31); 
+    
+    // add a hard coded host key --> hosung-kim
+    // TODO: make real soon?
+    std::vector<uint8_t> hostKey = {0x00, 0x00, 0x00, 0x0A, 0x68, 0x6F, 0x73, 0x75, 0x6E, 0x67, 0x2D, 0x6B, 0x69, 0x6D};
+    reply.insert(reply.end(), hostKey.begin(), hostKey.end());
+    
+    // add the public key
+    auto serverPublicBytes = DH::uint64ToBytes(serverPublicKey);
+    // convert to big endian and insert public key
+    uint32_t serverPublicLength = htonl(serverPublicBytes.size());
+    reply.insert(reply.end(), (uint8_t*)&serverPublicLength, (uint8_t*)&serverPublicLength + 4);
+    // insert public key
+    reply.insert(reply.end(), serverPublicBytes.begin(), serverPublicBytes.end());
+    
+    // add a fake signiture --> hosung-kim
+    // TODO: make real soon?
+    std::vector<uint8_t> signature = {0x00, 0x00, 0x00, 0x0A, 0x68, 0x6F, 0x73, 0x75, 0x6E, 0x67, 0x2D, 0x6B, 0x69, 0x6D};
+    reply.insert(reply.end(), signature.begin(), signature.end());
+    
+    return reply;
 }
