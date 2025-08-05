@@ -1,8 +1,10 @@
-#include "../include/dh.h"
+#include "c_dh.h"
+#include "c_kex.h"
 #include <random>
 #include <iostream>
 #include <cstring>
 #include <arpa/inet.h>
+
 
 DH::DH() : privateKey(0), publicKey(0) {
     // random private key
@@ -60,4 +62,33 @@ uint64_t DH::bytesToUint64(const std::vector<uint8_t>& bytes) {
         value = (value << 8) | bytes[i];
     }
     return value;
+}
+
+bool handleKexDhReply(const std::vector<uint8_t>& reply, const DH& dh, uint64_t& sharedSecret) {
+    if (reply.empty() || reply[0] != 31) {
+        std::cerr << "Invalid KEXDH_REPLY message type" << std::endl;
+        return false;
+    }
+    
+    size_t offset = 1;
+    
+    if (offset + 4 > reply.size()) return false;
+    uint32_t hostKeyLength = ntohl(*(uint32_t*)(reply.data() + offset));
+    offset += 4 + hostKeyLength;
+    
+    // read server public key
+    if (offset + 4 > reply.size()) return false;
+    uint32_t serverPublicLength = ntohl(*(uint32_t*)(reply.data() + offset));
+    offset += 4;
+    
+    if (offset + serverPublicLength > reply.size()) return false;
+    std::vector<uint8_t> serverPublicBytes(reply.begin() + offset, reply.begin() + offset + serverPublicLength);
+    uint64_t serverPublicKey = DH::bytesToUint64(serverPublicBytes);
+    
+    // compute shared secret
+    sharedSecret = dh.computeSharedSecret(serverPublicKey);
+    
+    std::cout << "Computed shared secret: " << std::hex << sharedSecret << std::dec << std::endl;
+    
+    return true;
 } 

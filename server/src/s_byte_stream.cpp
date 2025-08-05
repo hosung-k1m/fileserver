@@ -1,4 +1,4 @@
-#include "../include/byte_stream.h"
+#include "../include/s_byte_stream.h"
 
 // byte = 8 bits
 void ByteStream::writeByte(uint8_t val) {

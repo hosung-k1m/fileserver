@@ -1,8 +1,14 @@
+#pragma once
+
 #include <string>
 #include <vector>
 #include <map>
 #include <atomic>
 #include <thread>
+#include "s_kex.h"
+
+// Forward declaration
+class SimpleCrypto;
 
 class FileTransferServer {
 private:
@@ -16,6 +22,8 @@ private:
     // Current is map<username, password>
     std::map<std::string, std::string> users_;
 
+    SimpleCrypto* sendCrypto_;
+    SimpleCrypto* recvCrypto_;
 
 public:
     // defauly values --> port = 2222, uploadDir = ./uploads
@@ -30,9 +38,9 @@ public:
 private:
     void handleClient(int clientSocket);
     bool handleVersionExchange(int clientSocket);
-    bool handleKexinitExchange(int clientSocker);
+    bool handleKexinitExchange(int clientSocket, KexMatch& matchedKex);
     bool handleKeyExchange(int clientSocket);
-    std::vector<uint8_t> generateKexdhReply(const std::vector<uint8_t>& clientKexdhPayload);
+    std::vector<uint8_t> generateServerKexdhReply(const std::vector<uint8_t>& clientKexdhPayload);
     bool handleAuthentication(int clientSocket, std::string& username);
     void handleFileTransfer(int clientSocket, const std::string& username);
 };

@@ -1,5 +1,5 @@
-#include "../include/kex.h"
-#include "../include/byte_stream.h"
+#include "c_kex.h"
+#include "c_byte_stream.h"
 #include <cstdlib>
 #include <iostream>
 #include <algorithm>
@@ -7,7 +7,6 @@
 // first message for SSH handshake and key exchange phase
 
 // client --> server then server --> client
-
 
 std::vector<uint8_t> buildKexPayload() {
     ByteStream bs;
