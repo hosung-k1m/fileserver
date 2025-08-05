@@ -26,31 +26,26 @@ std::vector<uint8_t> buildKexPayload() {
 
     // Host key algorithms
     bs.writeNameList({
-        "ssh-rsa",
-        "rsa-sha2-256", 
-        "rsa-sha2-512"
+        "kim-rsa",
+        "RoseIsBestDog"
     });
 
     // Encryption algorithms
     bs.writeNameList({
-        "aes128-ctr",
-        "aes256-ctr",
-        "3des-cbc"
+        "simple-encrypt",
+        "too-easy-encrypt"
     });
     bs.writeNameList({
-        "aes128-ctr",
-        "aes256-ctr", 
-        "3des-cbc"
+        "abcd123-ctr"
     });
 
     // MAC algorithms
     bs.writeNameList({
-        "hmac-sha1",
-        "hmac-sha2-256"
+        "hmac-kim",
+        "mcChicken-MAC"
     });
     bs.writeNameList({
-        "hmac-sha1",
-        "hmac-sha2-256"
+        "bigMac-meal"
     });
 
     // Compression algorithms

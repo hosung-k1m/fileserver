@@ -1,4 +1,3 @@
-# Compiled C++ binaries
 *.o
 *.out
 *.exe
@@ -6,30 +5,22 @@
 *.so
 *.dylib
 
-# Build directories
 build/
 bin/
 obj/
 Debug/
 Release/
 
-# macOS specific files
 .DS_Store
 .Spotlight-V100
 .Trashes
 ._*
 
-# IDE/Editor specific files (adjust as needed)
 .vscode/
-.idea/
-*.sublime-project
-*.sublime-workspace
 
-# Dependency management files (e.g., Conan, vcpkg)
 conanbuildinfo.cmake
 conan_deps/
 vcpkg/
 
-# Log files and temporary files
 *.log
 *.tmp
