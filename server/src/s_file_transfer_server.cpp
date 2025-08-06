@@ -407,7 +407,7 @@ bool FileTransferServer::handleAuthentication(int clientSocket, std::string& use
  * FILE_DATA to client
  * 
  * FILE_END from client
- * FILE_DATA to client empy message
+ * FILE_END
  */
 
 void FileTransferServer::handleFileTransfer(int clientSocket, const std::string& username) {
@@ -517,7 +517,7 @@ void FileTransferServer::handleFileTransfer(int clientSocket, const std::string&
                     std::cout << "File received successfully: " << filePath << std::endl;
                     
                     // file success message to client
-                    FTPProtocol::sendEncryptedMessage(clientSocket, static_cast<uint8_t>(FTPProtocol::FTPMessageType::FILE_DATA), {}, sequenceNumber, *sendCrypto_);
+                    FTPProtocol::sendEncryptedMessage(clientSocket, static_cast<uint8_t>(FTPProtocol::FTPMessageType::FILE_END), {}, sequenceNumber, *sendCrypto_);
                 } else {
                     std::cerr << "Failed to parse file start message" << std::endl;
                 }
@@ -526,7 +526,7 @@ void FileTransferServer::handleFileTransfer(int clientSocket, const std::string&
             case FTPProtocol::FTPMessageType::FILE_END:
                 std::cout << "Client sent FILE_END message" << std::endl;
                 // send to FILE_DATA to client
-                FTPProtocol::sendEncryptedMessage(clientSocket, static_cast<uint8_t>(FTPProtocol::FTPMessageType::FILE_DATA), {}, sequenceNumber, *sendCrypto_);
+                FTPProtocol::sendEncryptedMessage(clientSocket, static_cast<uint8_t>(FTPProtocol::FTPMessageType::FILE_END), {}, sequenceNumber, *sendCrypto_);
                 
                 break;
 
